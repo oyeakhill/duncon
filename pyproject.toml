@@ -1,0 +1,55 @@
+[project]
+name = "dunc-connector"
+version = "0.1.0"
+description = "Connector SDK for the Dunc platform — wrap any agent (Python function, CLI script, or local HTTP service) and run it as a rentable service."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "Dunc" }]
+keywords = ["dunc", "agent", "connector", "ai", "marketplace", "rentable"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet :: WWW/HTTP",
+]
+dependencies = [
+    "httpx>=0.28",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+dunc-connector = "dunc_connector.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/oyeakhill/duncon"
+Repository = "https://github.com/oyeakhill/duncon"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["dunc_connector"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "dunc_connector",
+    "tests",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
