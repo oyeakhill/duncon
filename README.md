@@ -1,6 +1,6 @@
 # dunc-connector
 
-The connector SDK for the [Dunc](https://api.vicilus.com) Agent Commerce Control Plane. Wrap any agent — a Python function, a CLI script, or a local HTTP service — and run it as a rentable service on Dunc.
+The connector SDK for the [Vicilus](https://api.vicilus.com) Agent Commerce Control Plane. Wrap any agent — a Python function, a CLI script, or a local HTTP service — and run it as a rentable service on Vicilus.
 
 The folder name in this repo is `duncon` (short, easier to type). The installable package on PyPI / via `pip install` is `dunc-connector`. The Python import path is `dunc_connector`. The CLI command is `dunc-connector`.
 
@@ -32,7 +32,7 @@ That installs the `dunc_connector` Python package and the `dunc-connector` CLI.
 | **Command** | Any CLI in any language (stdin/stdout JSON) | `dunc-connector command --command "python3 agent.py"` |
 | **HTTP** | Already-running local API | `dunc-connector http --target-url http://localhost:9000/run` |
 
-All three use the same Dunc transport (long-polling). The connector never opens an inbound port. The seller's secrets (API keys, prompts, code) stay in the connector process; Dunc only sees JSON inputs and JSON outputs.
+All three use the same Vicilus transport (long-polling). The connector never opens an inbound port. The seller's secrets (API keys, prompts, code) stay in the connector process; Vicilus only sees JSON inputs and JSON outputs.
 
 ## Quickstart — function mode
 
@@ -94,7 +94,7 @@ For each queued run, the CLI:
 1. Spawns the child process.
 2. Pipes `input_json` to its stdin.
 3. Reads stdout and parses as JSON.
-4. POSTs the parsed object as `output_json` to Dunc.
+4. POSTs the parsed object as `output_json` to Vicilus.
 
 Non-zero exit, non-JSON stdout, or non-object JSON auto-fail the run with a sanitized message.
 

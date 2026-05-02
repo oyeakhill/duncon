@@ -1,4 +1,4 @@
-"""Dunc connector SDK — wrap any seller agent and run it on the Dunc platform."""
+"""Vicilus connector SDK — wrap any seller agent and run it on the Vicilus platform."""
 
 from dunc_connector.client import DuncClient
 from dunc_connector.errors import (

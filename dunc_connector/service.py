@@ -20,7 +20,7 @@ DEFAULT_BATCH_LIMIT = 10
 
 
 class DuncService:
-    """Polls Dunc on a single AgentConnection and dispatches runs to a handler.
+    """Polls Vicilus on a single AgentConnection and dispatches runs to a handler.
 
     Usage:
         svc = DuncService(base_url, connection_id, connection_token)

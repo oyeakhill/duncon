@@ -1,4 +1,4 @@
-"""Low-level HTTP client for the Dunc platform."""
+"""Low-level HTTP client for the Vicilus platform."""
 
 from __future__ import annotations
 

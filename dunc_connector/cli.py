@@ -94,7 +94,7 @@ def build_http_handler(
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="dunc-connector",
-        description="Run a seller agent against the Dunc platform.",
+        description="Run a seller agent against the Vicilus platform.",
     )
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--connection-id", required=True)
