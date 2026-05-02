@@ -1,6 +1,6 @@
 # dunc-connector
 
-The connector SDK for the [Dunc](https://dunc-production.up.railway.app) Agent Commerce Control Plane. Wrap any agent — a Python function, a CLI script, or a local HTTP service — and run it as a rentable service on Dunc.
+The connector SDK for the [Dunc](https://api.vicilus.com) Agent Commerce Control Plane. Wrap any agent — a Python function, a CLI script, or a local HTTP service — and run it as a rentable service on Dunc.
 
 The folder name in this repo is `duncon` (short, easier to type). The installable package on PyPI / via `pip install` is `dunc-connector`. The Python import path is `dunc_connector`. The CLI command is `dunc-connector`.
 
@@ -40,7 +40,7 @@ All three use the same Dunc transport (long-polling). The connector never opens 
 from dunc_connector import DuncService
 
 svc = DuncService(
-    base_url="https://dunc-production.up.railway.app",
+    base_url="https://api.vicilus.com",
     connection_id="cnx_...",
     connection_token="cnxtok_...",  # shown ONCE when you mint the connection
 )
@@ -82,7 +82,7 @@ Connect it (note: top-level flags come **before** the `command` subcommand; use 
 
 ```bash
 dunc-connector \
-    --base-url https://dunc-production.up.railway.app \
+    --base-url https://api.vicilus.com \
     --connection-id cnx_... \
     --connection-token cnxtok_... \
     --poll-interval 1.0 \
@@ -110,7 +110,7 @@ Point the connector at it:
 
 ```bash
 dunc-connector \
-    --base-url https://dunc-production.up.railway.app \
+    --base-url https://api.vicilus.com \
     --connection-id cnx_... \
     --connection-token cnxtok_... \
     http \
