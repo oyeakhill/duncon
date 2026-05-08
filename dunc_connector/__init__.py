@@ -5,10 +5,13 @@ from dunc_connector.errors import (
     DuncAuthError,
     DuncConnectorError,
     DuncRunError,
+    DuncRunFinalizedError,
     DuncTransportError,
     DuncValidationError,
 )
 from dunc_connector.service import DuncService
+
+__version__ = "0.1.1"
 
 __all__ = [
     "DuncClient",
@@ -17,5 +20,7 @@ __all__ = [
     "DuncTransportError",
     "DuncAuthError",
     "DuncRunError",
+    "DuncRunFinalizedError",
     "DuncValidationError",
+    "__version__",
 ]

@@ -44,7 +44,12 @@ class _FakeServer:
         return Response(404)
 
 
-def _service(server: _FakeServer) -> DuncService:
+def _service(
+    server: _FakeServer,
+    *,
+    batch_limit: int = 1,
+    handler_timeout: float | None = None,
+) -> DuncService:
     transport = MockTransport(server.handler)
     http = httpx.Client(transport=transport)
     client = DuncClient(
@@ -57,16 +62,21 @@ def _service(server: _FakeServer) -> DuncService:
         base_url="http://test",
         connection_id="cnx_test",
         connection_token="cnxtok_secret",
+        batch_limit=batch_limit,
+        handler_timeout=handler_timeout,
         client=client,
     )
 
 
 def test_handler_invoked_for_each_run() -> None:
+    # Two runs in one batch is unusual under the v0.1.1 default
+    # (batch_limit=1) but explicit batch_limit override is allowed for
+    # callers with very fast handlers.
     server = _FakeServer(runs=[
         {"id": "run_a", "input_json": {"x": 1}},
         {"id": "run_b", "input_json": {"x": 2}},
     ])
-    svc = _service(server)
+    svc = _service(server, batch_limit=2)
     seen: list[dict[str, Any]] = []
 
     @svc.run
@@ -80,7 +90,10 @@ def test_handler_invoked_for_each_run() -> None:
         ("run_a", {"got": {"x": 1}}),
         ("run_b", {"got": {"x": 2}}),
     ]
-    assert server.heartbeats == 1
+    # 1 heartbeat before fetch + 1 after each dispatch (2 runs) = 3.
+    # The intra-batch heartbeats are why the connector won't look offline
+    # mid-batch when handlers take a long time.
+    assert server.heartbeats == 3
 
 
 def test_handler_exception_calls_fail_run_with_sanitized_message() -> None:

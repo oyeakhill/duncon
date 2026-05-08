@@ -17,9 +17,9 @@ uv add dunc-connector
 Until PyPI publish, install directly from this Git repo:
 
 ```bash
-pip install "git+https://github.com/oyeakhill/duncon.git"
+pip install "git+https://github.com/oyeakhil/duncon.git"
 # or
-uv add "git+https://github.com/oyeakhill/duncon.git"
+uv add "git+https://github.com/oyeakhil/duncon.git"
 ```
 
 That installs the `dunc_connector` Python package and the `dunc-connector` CLI.
@@ -33,6 +33,20 @@ That installs the `dunc_connector` Python package and the `dunc-connector` CLI.
 | **HTTP** | Already-running local API | `dunc-connector http --target-url http://localhost:9000/run` |
 
 All three use the same Vicilus transport (long-polling). The connector never opens an inbound port. The seller's secrets (API keys, prompts, code) stay in the connector process; Vicilus only sees JSON inputs and JSON outputs.
+
+## Operational defaults — read before going to production
+
+The SDK is opinionated about reliability defaults. Sellers running paid services should keep these unless they know what they're trading off.
+
+| Setting | Default | Why |
+|---|---|---|
+| `batch_limit` | **1** | Connector heartbeats between every dispatch. Long handlers won't make the connector look offline mid-batch. Raise only if your handlers complete in well under 60s. |
+| `handler_timeout` | **90s** | Bounded under the platform's `RUN_TIMEOUT_SECONDS=120s`. If your handler exceeds this, the SDK fails the run cleanly — *before* the platform sweep refunds the buyer. Set to 0 to disable. |
+| `poll_interval` | 2.0s | Long-poll cadence. |
+| Transport backoff | exponential, cap 60s | Network/platform errors no longer hammer at 0.5 RPS. Resets after a successful heartbeat/fetch. |
+| `User-Agent` | `dunc-connector/<version>` | Lets the platform correlate connector behavior to a specific SDK release. |
+
+**Run the connector on a stable cloud server for paid services** (Railway, Fly, Render, EC2, GCE — anywhere with predictable uptime). Local-laptop mode is fine for testing but every Wi-Fi blip, lid close, or restart leaves runs stuck in `processing` until the platform sweep refunds the buyer.
 
 ## Quickstart — function mode
 
@@ -48,7 +62,7 @@ svc = DuncService(
 @svc.run
 def handle(input_json: dict) -> dict:
     # Your real agent goes here. SDK handles the rest:
-    # auth, polling, output validation, error sanitization.
+    # auth, polling, output validation, error sanitization, timeouts.
     return {"answer": 42}
 
 svc.start()
@@ -63,8 +77,10 @@ python my_agent.py
 You should see:
 
 ```
-[connector] dunc connector starting: connection_id=cnx_... poll_interval=2.0s
+[connector] dunc connector starting: connection_id=cnx_... poll_interval=2.0s batch_limit=1 handler_timeout=90.0s
 ```
+
+`Ctrl-C` or `kill` the process — it traps both `SIGINT` and `SIGTERM`, finishes the in-flight run, then exits cleanly.
 
 ## Quickstart — command mode (any language)
 
@@ -78,17 +94,19 @@ out = {"echo": data}
 sys.stdout.write(json.dumps(out))
 ```
 
-Connect it (note: top-level flags come **before** the `command` subcommand; use `python3` not `python`):
+**Recommended invocation** — token in env var, kept out of shell history / `ps aux` / journald:
 
 ```bash
+export DUNC_CONNECTION_TOKEN="cnxtok_..."
+
 dunc-connector \
     --base-url https://api.vicilus.com \
     --connection-id cnx_... \
-    --connection-token cnxtok_... \
-    --poll-interval 1.0 \
     command \
     --command "python3 agent.py"
 ```
+
+The token is also accepted via `--connection-token <secret>` for one-shot demos, but **the env var is strictly safer** — the CLI prints a warning when you use the flag.
 
 For each queued run, the CLI:
 1. Spawns the child process.
@@ -109,10 +127,11 @@ python my_agent_server.py     # listening on http://localhost:9000/run
 Point the connector at it:
 
 ```bash
+export DUNC_CONNECTION_TOKEN="cnxtok_..."
+
 dunc-connector \
     --base-url https://api.vicilus.com \
     --connection-id cnx_... \
-    --connection-token cnxtok_... \
     http \
     --target-url http://localhost:9000/run
 ```
@@ -122,10 +141,14 @@ For each queued run, the connector POSTs `input_json` and parses the JSON respon
 ## What the SDK gives you for free
 
 - **Token masking** in `repr()` and logs.
+- **Token via env var** (`DUNC_CONNECTION_TOKEN`) keeps secrets out of shell history.
 - **Output validation**: must be a JSON object, default 1 MiB cap, configurable.
 - **Sanitized errors**: handler exceptions → `<Type>: <message>` (no traceback, no leaked args).
-- **Transport-error retry**: network blips don't kill the connector.
-- **Clean shutdown** on `KeyboardInterrupt`.
+- **Handler timeout** (90s default): SDK fails the run cleanly before the platform sweep refunds the buyer.
+- **Per-run heartbeats**: connector never looks offline mid-batch.
+- **SIGTERM-aware shutdown**: redeploys finish the current run, then exit. No orphaned `processing` rows.
+- **Transport backoff**: exponential with 60s cap; doesn't hammer the platform during outages.
+- **Platform-finalized awareness**: if the platform already swept your run (or a buyer cancelled), the SDK logs *"run was already finalized by platform; result was not accepted"* instead of a generic transport error.
 - **Structured logging** under `logging.getLogger("dunc_connector")`.
 
 ## Development
@@ -136,7 +159,7 @@ pip install -e .[dev]
 pytest -q
 ```
 
-26 unit tests cover the client, service, errors, and CLI handlers. Tests are hermetic — no network calls; `httpx.MockTransport` is used to fake the platform.
+46 unit tests cover the client, service, errors, CLI handlers, reliability hardening (timeout, backoff, shutdown, 422 awareness), and the env-var token flow. Tests are hermetic — no network calls; `httpx.MockTransport` is used to fake the platform.
 
 ## License
 

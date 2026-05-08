@@ -1,17 +1,23 @@
 """CLI for the dunc-connector — wraps a child command or local HTTP target.
 
-Usage:
-  dunc-connector command --command "python agent.py" \\
-      --base-url ... --connection-id ... --connection-token ...
+Usage (recommended):
 
-  dunc-connector http --target-url http://localhost:9000/run \\
-      --base-url ... --connection-id ... --connection-token ...
+  export DUNC_CONNECTION_TOKEN="cnxtok_..."
+  dunc-connector \\
+      --base-url https://api.vicilus.com \\
+      --connection-id cnx_... \\
+      command --command "python3 agent.py"
+
+Putting the token in an env var keeps it out of shell history, `ps aux`,
+journald, and CI logs. The legacy `--connection-token <secret>` flag still
+works for quick demos but is less safe.
 
 Common flags:
-  --poll-interval (default 2.0)
-  --batch-limit   (default 10)
+  --poll-interval     (default 2.0)
+  --batch-limit       (default 1 — heartbeat between every run)
+  --handler-timeout   (default 90s — must be ≤ platform RUN_TIMEOUT_SECONDS)
   --command-timeout / --http-timeout (default 60s)
-  --once          (run a single poll cycle and exit; useful for tests)
+  --once              run a single poll cycle and exit (testing)
 """
 
 from __future__ import annotations
@@ -19,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json as _json
 import logging
+import os
 import shlex
 import subprocess
 import sys
@@ -26,11 +33,14 @@ from typing import Any, Callable
 
 import httpx
 
+from dunc_connector import __version__
 from dunc_connector.service import DuncService
 
 _LOG = logging.getLogger("dunc_connector.cli")
 
 Handler = Callable[[dict[str, Any]], dict[str, Any]]
+
+DEFAULT_TOKEN_ENV = "DUNC_CONNECTION_TOKEN"
 
 
 def build_command_handler(command: str, *, timeout: float = 60.0) -> Handler:
@@ -91,16 +101,74 @@ def build_http_handler(
     return handler
 
 
+def resolve_token(args: argparse.Namespace, env: dict[str, str] | None = None) -> str:
+    """Resolve the connection token from --connection-token or env var.
+
+    Precedence:
+      1. --connection-token (explicit, less safe — leaks via shell history / ps)
+      2. env var named by --connection-token-env (default DUNC_CONNECTION_TOKEN)
+    Raises SystemExit(2) with a clear message if neither resolves.
+    """
+    if env is None:
+        env = os.environ  # type: ignore[assignment]
+    if args.connection_token:
+        _LOG.warning(
+            "--connection-token on the CLI leaks via shell history and `ps aux`; "
+            "prefer `export %s=...` instead",
+            args.connection_token_env,
+        )
+        return args.connection_token
+    token = env.get(args.connection_token_env)
+    if token:
+        return token
+    raise SystemExit(
+        f"error: connection token missing — set ${args.connection_token_env} "
+        f"(recommended) or pass --connection-token (less safe)"
+    )
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="dunc-connector",
         description="Run a seller agent against the Vicilus platform.",
     )
+    parser.add_argument("--version", action="version", version=f"dunc-connector {__version__}")
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--connection-id", required=True)
-    parser.add_argument("--connection-token", required=True)
+    parser.add_argument(
+        "--connection-token",
+        default=None,
+        help=(
+            "Connection token — LESS SAFE: leaks via shell history / ps aux / logs. "
+            "Prefer setting $DUNC_CONNECTION_TOKEN instead."
+        ),
+    )
+    parser.add_argument(
+        "--connection-token-env",
+        default=DEFAULT_TOKEN_ENV,
+        help=f"Env var name to read the token from (default {DEFAULT_TOKEN_ENV}).",
+    )
     parser.add_argument("--poll-interval", type=float, default=2.0)
-    parser.add_argument("--batch-limit", type=int, default=10)
+    parser.add_argument(
+        "--batch-limit",
+        type=int,
+        default=1,
+        help=(
+            "Runs to fetch per poll. Default 1 — connector heartbeats between every "
+            "dispatch. Raise only if your handlers are very fast; otherwise the "
+            "connector can look offline mid-batch."
+        ),
+    )
+    parser.add_argument(
+        "--handler-timeout",
+        type=float,
+        default=90.0,
+        help=(
+            "Max seconds the handler may run before SDK fails the run with a clean "
+            "message. Must be ≤ platform RUN_TIMEOUT_SECONDS (default 120s) so the "
+            "platform sweep doesn't refund the buyer mid-handler. 0 = disabled."
+        ),
+    )
     parser.add_argument("--once", action="store_true", help="Run one poll cycle and exit")
 
     subs = parser.add_subparsers(dest="mode", required=True)
@@ -125,6 +193,11 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="[connector] %(message)s")
     args = _build_parser().parse_args(argv)
+    token = resolve_token(args)
+
+    # Per-run timeouts on the *invocation* side. The SDK additionally enforces
+    # handler_timeout at the dispatch level, so the effective ceiling is
+    # min(handler_timeout, command_timeout / http_timeout).
     if args.mode == "command":
         handler = build_command_handler(args.command, timeout=args.command_timeout)
     elif args.mode == "http":
@@ -133,12 +206,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"unknown mode: {args.mode}", file=sys.stderr)
         return 2
 
+    handler_timeout: float | None = (
+        args.handler_timeout if args.handler_timeout > 0 else None
+    )
     svc = DuncService(
         base_url=args.base_url,
         connection_id=args.connection_id,
-        connection_token=args.connection_token,
+        connection_token=token,
         poll_interval=args.poll_interval,
         batch_limit=args.batch_limit,
+        handler_timeout=handler_timeout,
     )
     svc.run(handler)
 

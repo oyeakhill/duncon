@@ -1,6 +1,6 @@
 [project]
 name = "dunc-connector"
-version = "0.1.0"
+version = "0.1.1"
 description = "Connector SDK for the Vicilus platform — wrap any agent (Python function, CLI script, or local HTTP service) and run it as a rentable service."
 readme = "README.md"
 license = { text = "MIT" }

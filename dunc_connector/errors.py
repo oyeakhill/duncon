@@ -19,3 +19,12 @@ class DuncRunError(DuncConnectorError):
 
 class DuncValidationError(DuncConnectorError):
     """Handler returned a value the platform won't accept (e.g. not a dict, too large)."""
+
+
+class DuncRunFinalizedError(DuncConnectorError):
+    """Platform refused complete/fail because the run is no longer in `processing`.
+
+    Almost always means the platform's timeout sweep marked the run `timed_out`
+    (or a buyer cancel raced) before the connector's response landed. The
+    seller's work was effectively wasted; the buyer has been refunded.
+    """
